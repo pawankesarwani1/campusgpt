@@ -1,0 +1,46 @@
+# ─────────────────────────────────────────────
+# CampusGPT — Git ignore rules
+# Protects secrets, large binaries, and generated data
+# ─────────────────────────────────────────────
+
+# ── Secrets & environment ──
+.env
+.env.*
+!.env.example
+*.secret
+*.key
+*.pem
+
+# ── Python environments & caches ──
+venv/
+env/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ── Node / frontend ──
+node_modules/
+dist/
+build/
+release/
+*.local
+
+# ── Databases & persisted data ──
+chroma_store/
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Bundled MongoDB binaries & archives ──
+mongodb-win32-*/
+mongodb.zip
+*.zip
+
+# ── Logs & temp ──
+*.log
+*.tmp
+.DS_Store
+Thumbs.db

@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-campus-blue: #3B82F6;
+    --color-campus-dark: #EEF2FB;
+    --color-campus-card: #FFFFFF;
+    --color-campus-text: #0B0E14;
+    --color-campus-hover: #E3EAF7;
+    --color-campus-border: #CDD6EC;
+    --color-campus-accent: #2563EB;
+    --color-campus-muted: #5B6486;
+    --color-campus-success: #10B981;
+    --color-campus-error: #F43F5E;
+    --color-campus-warn: #F59E0B;
+  }
+
+  .dark {
+    --color-campus-blue: #3B82F6;
+    --color-campus-dark: #000000;
+    --color-campus-card: #0B0E14;
+    --color-campus-text: #E9ECF2;
+    --color-campus-hover: #141922;
+    --color-campus-border: #1E2430;
+    --color-campus-accent: #60A5FA;
+    --color-campus-muted: #8A93A6;
+    --color-campus-success: #10B981;
+    --color-campus-error: #F43F5E;
+    --color-campus-warn: #F59E0B;
+  }
+}
+
+/* ── Custom scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-campus-dark);
+}
+::-webkit-scrollbar-thumb {
+  background: #1E2430;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3B82F6;
+}
+
+/* ── Selection ── */
+::selection {
+  background: #3B82F6;
+  color: #FFFFFF;
+}
+
+/* ── Smooth scroll ── */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ── Body defaults ── */
+body {
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Markdown prose override for dark theme ── */
+.prose {
+  --tw-prose-body: #F8FAFC;
+  --tw-prose-headings: #F8FAFC;
+  --tw-prose-links: #60A5FA;
+  --tw-prose-bold: #F8FAFC;
+  --tw-prose-code: #60A5FA;
+  --tw-prose-pre-bg: #05070B;
+  --tw-prose-pre-code: #F8FAFC;
+  --tw-prose-quotes: #8A93A6;
+  --tw-prose-quote-borders: #3B82F6;
+  --tw-prose-counters: #8A93A6;
+  --tw-prose-bullets: #8A93A6;
+  --tw-prose-th-borders: #1E2430;
+  --tw-prose-td-borders: #141922;
+}
+
+/* ── Typing indicator animation ── */
+@keyframes typingDot {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-4px); }
+}
+.typing-dot {
+  animation: typingDot 1.4s infinite ease-in-out;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* ── Textarea auto-resize reset ── */
+textarea {
+  field-sizing: content;
+}
+
+/* ── Toast entrance ── */
+.toast-enter {
+  animation: slideUp 0.3s ease-out, fadeIn 0.3s ease-out;
+}
