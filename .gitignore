@@ -44,3 +44,8 @@ mongodb.zip
 *.tmp
 .DS_Store
 Thumbs.db
+
+# ── Editor / tooling ──
+.claude/
+.vscode/
+.idea/
