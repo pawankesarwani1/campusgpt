@@ -21,7 +21,12 @@ from pipeline.embed_store import store_documents
 # ──────────────────────────────────────────────────────────────
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-UPLOADS_DIR = os.path.join(PROJECT_ROOT, "data", "raw", "uploads")
+# The desktop app sets CAMPUSGPT_DATA_DIR to a writable per-user folder.
+UPLOADS_DIR = (
+    os.path.join(os.environ["CAMPUSGPT_DATA_DIR"], "uploads")
+    if os.getenv("CAMPUSGPT_DATA_DIR")
+    else os.path.join(PROJECT_ROOT, "data", "raw", "uploads")
+)
 
 
 def _ensure_dir(path: str) -> None:

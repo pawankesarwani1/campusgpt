@@ -16,7 +16,12 @@ from datetime import datetime, timezone
 
 from app.config import settings
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+# The desktop app sets CAMPUSGPT_DATA_DIR to a writable per-user folder.
+DATA_DIR = (
+    Path(os.environ["CAMPUSGPT_DATA_DIR"]) / "db"
+    if os.getenv("CAMPUSGPT_DATA_DIR")
+    else Path(__file__).resolve().parent.parent / "data"
+)
 
 class ObjectId:
     def __init__(self, oid=None):

@@ -1,5 +1,6 @@
 {
   "name": "campusgpt-frontend",
+  "productName": "CampusGPT",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -11,8 +12,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently -k -n VITE,ELECTRON -c cyan,magenta \"vite\" \"wait-on tcp:5173 && electron electron/main.cjs\"",
-    "electron:preview": "vite build && cross-env FORCE_PROD=1 electron electron/main.cjs",
-    "electron:build": "vite build && electron-builder"
+    "build:electron-ui": "cross-env BUILD_TARGET=electron vite build",
+    "build:backend": "cd ../backend && venv\\Scripts\\pyinstaller.exe campusgpt-backend.spec --noconfirm --log-level WARN",
+    "electron:preview": "npm run build:electron-ui && cross-env FORCE_PROD=1 electron electron/main.cjs",
+    "electron:build": "npm run build:backend && npm run build:electron-ui && electron-builder --win",
+    "electron:build:quick": "npm run build:electron-ui && electron-builder --win"
   },
   "dependencies": {
     "axios": "^1.7.2",
@@ -48,10 +52,20 @@
       "dist/**/*",
       "electron/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "../backend/dist/campusgpt-backend",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "icon": "public/pwa-512x512.png"
     },
     "nsis": {
       "oneClick": false,

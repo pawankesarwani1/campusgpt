@@ -6,6 +6,8 @@ import PDFUploader from '../upload/PDFUploader';
 import { API_BASE_URL } from '../../api/axios';
 
 const API_BASE = API_BASE_URL;
+// Must match ChatRequest.query max_length in backend/app/chat/models.py.
+const MAX_QUERY_CHARS = 20000;
 
 export default function InputBar() {
   const [input, setInput] = useState('');
@@ -40,17 +42,26 @@ export default function InputBar() {
     const query = (typeof overrideText === 'string' ? overrideText : input).trim();
     if (!query || isStreaming) return;
 
-    setInput('');
-    if (textareaRef.current) textareaRef.current.style.height = 'auto';
-
     // Format the query with quote if available
     let finalQuery = query;
     if (replyQuote) {
       // Add standard Markdown blockquote formatting
       const formattedQuote = replyQuote.split('\n').map(line => `> ${line}`).join('\n');
       finalQuery = `${formattedQuote}\n\n${query}`;
-      clearReplyQuote();
     }
+
+    // Check before clearing the input so the user doesn't lose what they typed.
+    if (finalQuery.length > MAX_QUERY_CHARS) {
+      addToast({
+        type: 'error',
+        message: `Message is too long (${finalQuery.length.toLocaleString()} characters). Please shorten it to under ${MAX_QUERY_CHARS.toLocaleString()}.`,
+      });
+      return;
+    }
+
+    setInput('');
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    if (replyQuote) clearReplyQuote();
 
     // Ensure we have a session (unless temporary)
     let sessionId = currentSession?.id;
@@ -62,6 +73,17 @@ export default function InputBar() {
       }
       sessionId = session.id;
     }
+
+    // Temporary chats aren't saved on the server, so send the recent turns with the
+    // question to let follow-ups refer to earlier answers. (Saved sessions load
+    // their history server-side.) Must be read before the new messages are added.
+    const history = isTemporary
+      ? useChatStore.getState().messages
+          .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content?.trim()
+            && !(m.role === 'assistant' && m.content.trim().startsWith('⚠️ Error')))
+          .slice(-20)
+          .map((m) => ({ role: m.role, content: m.content.slice(0, 50000) }))
+      : undefined;
 
     // Add user message locally
     const userMsg = {
@@ -91,6 +113,7 @@ export default function InputBar() {
         mode: selectedMode,
         session_id: sessionId,
         is_temporary: isTemporary,
+        history,
       },
       (token) => appendToken(token),
       (data) => {

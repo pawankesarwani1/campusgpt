@@ -22,7 +22,10 @@ from langchain_community.vectorstores import Chroma
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
-CHROMA_PERSIST_DIR = os.path.join(PROJECT_ROOT, "chroma_store")
+# Overridable so the desktop app can keep the vector store in the user's data folder.
+CHROMA_PERSIST_DIR = os.path.abspath(
+    os.getenv("CHROMA_PERSIST_DIR") or os.path.join(PROJECT_ROOT, "chroma_store")
+)
 
 # Collection names
 COLLECTIONS = {

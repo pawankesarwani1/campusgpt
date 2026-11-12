@@ -1,8 +1,10 @@
 import axios from 'axios';
 
-// The backend URL. In production this is set via VITE_API_URL (e.g. your
-// Render/Railway backend). Falls back to the local dev server.
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+// The backend URL. In the desktop app, Electron starts the bundled backend on a
+// free port and exposes it via the preload script. On the web it is set via
+// VITE_API_URL (e.g. your Render/Railway backend). Falls back to the local dev server.
+export const API_BASE_URL =
+  window.campusDesktop?.apiUrl || import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

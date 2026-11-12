@@ -18,6 +18,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmb
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import PromptTemplate
 from langchain_core.documents import Document
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from app.config import settings
 from app.prompts.base_prompt import BASE_PROMPT_TEMPLATE
@@ -126,6 +127,11 @@ def retrieve_context(
     """
     all_docs: list[Document] = []
 
+    # Search with the user's own words, not a long quoted answer ("> " lines),
+    # and cap the length so the embedding call stays within its input limit.
+    own_text = "\n".join(l for l in query.splitlines() if not l.lstrip().startswith(">")).strip()
+    search_query = (own_text or query)[-2000:]
+
     # When a subject is selected we still want to surface generic/ad-hoc
     # uploads (which are tagged "UNKNOWN" when no subject was given at upload
     # time). A hard {"subject_code": X} filter would hide those, so we match
@@ -137,7 +143,7 @@ def retrieve_context(
     for coll_name in collections:
         try:
             retriever = get_retriever(coll_name, k=k, filter_dict=filter_dict)
-            docs = retriever.invoke(query)
+            docs = retriever.invoke(search_query)
             all_docs.extend(docs)
         except Exception as e:
             # Collection may not exist or be empty
@@ -173,6 +179,71 @@ def retrieve_context(
 
 
 # ──────────────────────────────────────────────────────────────
+# Conversation history
+# ──────────────────────────────────────────────────────────────
+
+# How much of the earlier conversation is sent with each question.
+MAX_HISTORY_MESSAGES = 20
+HISTORY_CHAR_BUDGET = 40000
+
+# Replies saved by chat/routes.py when generation failed — never useful context.
+ERROR_REPLY_PREFIX = "An error occurred:"
+
+HISTORY_SYSTEM_PROMPT = (
+    "You are CampusGPT, an AI study assistant for Anna University students. "
+    "The earlier messages are this chat session's conversation so far. When the "
+    "student refers to them (e.g. 'the answer above', 'question 3 from your list', "
+    "'the starred question', 'explain that in more detail'), use those messages to "
+    "work out what they mean and answer accordingly."
+)
+
+
+def build_history_messages(history: list[dict]) -> list[BaseMessage]:
+    """
+    Turn stored chat turns ({role, content}) into LangChain messages, keeping only
+    the most recent ones that fit the size budget. Failed replies are dropped.
+    """
+    turns = [
+        h for h in history
+        if h.get("role") in ("user", "assistant")
+        and (h.get("content") or "").strip()
+        and not (h["role"] == "assistant" and h["content"].startswith(ERROR_REPLY_PREFIX))
+    ][-MAX_HISTORY_MESSAGES:]
+
+    # Walk back from the newest turn until the budget is used up.
+    kept, used = [], 0
+    for h in reversed(turns):
+        content = h["content"]
+        if used + len(content) > HISTORY_CHAR_BUDGET:
+            if not kept:  # always keep the latest turn, trimmed if huge
+                kept.append({"role": h["role"], "content": content[:HISTORY_CHAR_BUDGET]})
+            break
+        kept.append(h)
+        used += len(content)
+    kept.reverse()
+
+    # The conversation must start with the student.
+    while kept and kept[0]["role"] != "user":
+        kept.pop(0)
+
+    return [
+        HumanMessage(content=h["content"]) if h["role"] == "user" else AIMessage(content=h["content"])
+        for h in kept
+    ]
+
+
+def _merge_consecutive(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """Gemini expects user/model turns to alternate; merge any same-role neighbours."""
+    merged: list[BaseMessage] = []
+    for msg in messages:
+        if merged and type(merged[-1]) is type(msg) and not isinstance(msg, SystemMessage):
+            merged[-1] = type(msg)(content=f"{merged[-1].content}\n\n{msg.content}")
+        else:
+            merged.append(msg)
+    return merged
+
+
+# ──────────────────────────────────────────────────────────────
 # Main RAG streaming function
 # ──────────────────────────────────────────────────────────────
 
@@ -181,6 +252,7 @@ async def rag_stream(
     subject_code: Optional[str] = None,
     mode: str = "general",
     k: int = 5,
+    history: Optional[list[dict]] = None,
 ) -> AsyncGenerator[str, None]:
     """
     Main RAG function. Retrieves context from ChromaDB, builds a prompt,
@@ -191,6 +263,8 @@ async def rag_stream(
         subject_code: Optional subject code to filter retrieval.
         mode: One of "general", "marks13", "pyq_predict", "summarize".
         k: Number of documents to retrieve per collection.
+        history: Earlier turns of this chat ({role, content}, oldest first),
+            so follow-up questions can refer to previous answers.
 
     Yields:
         String tokens from the LLM response as they are generated.
@@ -213,8 +287,20 @@ async def rag_stream(
     # 4. Build the full prompt
     full_prompt = prompt_template.format(context=context, question=query)
 
-    # 5. Stream response from Gemini
-    async for chunk in llm.astream(full_prompt):
+    # 5. Prepend the conversation so far, so follow-ups can refer to it
+    history_messages = build_history_messages(history or [])
+    llm_input = (
+        _merge_consecutive([
+            SystemMessage(content=HISTORY_SYSTEM_PROMPT),
+            *history_messages,
+            HumanMessage(content=full_prompt),
+        ])
+        if history_messages
+        else full_prompt
+    )
+
+    # 6. Stream response from Gemini
+    async for chunk in llm.astream(llm_input):
         if chunk.content:
             yield chunk.content
 

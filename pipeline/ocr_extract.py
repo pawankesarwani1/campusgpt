@@ -12,16 +12,26 @@ How it works:
   6. Clean and return full text for chunking
 
 Requirements:
-  pip install pymupdf google-generativeai pillow
+  pip install pymupdf google-genai
 """
 
-import os, io, base64, re
+import os, re
 import fitz                          # PyMuPDF
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
+_client = None
+
+
+def _get_client() -> genai.Client:
+    """Create the Gemini client lazily so the key is read at call time."""
+    global _client
+    if _client is None:
+        _client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+    return _client
 
 # ── constants ──────────────────────────────────────────────────────────────
 MIN_TEXT_CHARS   = 100    # if extracted text < this, treat as image-based PDF
@@ -41,18 +51,15 @@ def _clean_text(text: str) -> str:
     return text.strip()
 
 
-def _page_to_base64_png(page) -> str:
-    """Render a PDF page to PNG and return as base64 string."""
+def _page_to_png(page) -> bytes:
+    """Render a PDF page to PNG bytes."""
     mat    = fitz.Matrix(IMAGE_DPI / 72, IMAGE_DPI / 72)  # scale to DPI
     pixmap = page.get_pixmap(matrix=mat, colorspace=fitz.csRGB)
-    png    = pixmap.tobytes("png")
-    return base64.b64encode(png).decode("utf-8")
+    return pixmap.tobytes("png")
 
 
-def _gemini_vision_ocr(image_b64: str, page_num: int) -> str:
+def _gemini_vision_ocr(image_png: bytes, page_num: int) -> str:
     """Send one page image to Gemini Vision and get back extracted text."""
-    model = genai.GenerativeModel(GEMINI_MODEL)
-
     prompt = (
         "You are an OCR engine for Anna University academic documents. "
         "Extract ALL text from this page image exactly as written. "
@@ -61,15 +68,12 @@ def _gemini_vision_ocr(image_b64: str, page_num: int) -> str:
         "Return ONLY the extracted text — no commentary, no preamble."
     )
 
-    response = model.generate_content([
-        prompt,
-        {
-            "mime_type": "image/png",
-            "data":      image_b64,
-        }
-    ])
+    response = _get_client().models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[prompt, types.Part.from_bytes(data=image_png, mime_type="image/png")],
+    )
 
-    return response.text.strip()
+    return (response.text or "").strip()
 
 
 # ── main public functions ───────────────────────────────────────────────────
@@ -120,8 +124,8 @@ def extract_text_ocr(pdf_path: str, verbose: bool = True) -> dict:
 
     for i in range(total_pages):
         page  = doc[i]
-        b64   = _page_to_base64_png(page)
-        text  = _gemini_vision_ocr(b64, i + 1)
+        png   = _page_to_png(page)
+        text  = _gemini_vision_ocr(png, i + 1)
         page_texts.append(text)
 
         if verbose:

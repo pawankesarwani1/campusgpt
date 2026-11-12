@@ -114,7 +114,9 @@ export default function ExamMode({ isOpen, onClose, subjectCode: initialSubjectC
         // MCQ Mode: Expect JSON response
         const response = await api.post('/features/exam-mode', requestBody);
         if (response.data.questions) {
-          setMcqQuestions(response.data.questions);
+          // Re-number ids: the LLM sometimes repeats or omits them, which would make
+          // questions share a single entry in userAnswers.
+          setMcqQuestions(response.data.questions.map((q, i) => ({ ...q, id: i + 1 })));
           setTimerStarted(true);
         } else {
           setExamContent('Failed to generate MCQs.');
@@ -166,10 +168,24 @@ export default function ExamMode({ isOpen, onClose, subjectCode: initialSubjectC
     setExamFinished(true);
   };
 
+  // The LLM's "answer" may be a bare letter ("B"), the full option text
+  // ("B) Gather facts..."), or the text without the letter prefix. Used for both
+  // highlighting and scoring so the two can never disagree.
+  const isCorrectOption = (opt, oIdx, answer) => {
+    const cleanOpt = (opt || '').trim();
+    const cleanAns = (answer || '').trim();
+    if (!cleanAns) return false;
+    if (cleanOpt === cleanAns) return true;
+    const letter = cleanAns.match(/^([A-Da-d])[).:]?$/);
+    if (letter) return oIdx === letter[1].toUpperCase().charCodeAt(0) - 65;
+    return cleanAns.length > 3 && cleanOpt.includes(cleanAns);
+  };
+
   const calculateScore = () => {
     if (!mcqQuestions) return 0;
     return mcqQuestions.reduce((score, q) => {
-      return userAnswers[q.id] === q.answer ? score + 1 : score;
+      const selectedIdx = q.options.indexOf(userAnswers[q.id]);
+      return selectedIdx !== -1 && isCorrectOption(q.options[selectedIdx], selectedIdx, q.answer) ? score + 1 : score;
     }, 0);
   };
 
@@ -341,11 +357,7 @@ export default function ExamMode({ isOpen, onClose, subjectCode: initialSubjectC
           <div className="space-y-3">
             {q.options.map((opt, oIdx) => {
               const isSelected = userAnswers[q.id] === opt;
-              const cleanOpt = opt.trim();
-              const cleanAns = q.answer?.trim() || "";
-              const isCorrect = cleanOpt === cleanAns ||
-                (cleanAns.length > 3 && cleanOpt.includes(cleanAns)) ||
-                (cleanAns.length <= 3 && cleanOpt.startsWith(cleanAns));
+              const isCorrect = isCorrectOption(opt, oIdx, q.answer);
               const showResult = examFinished;
 
               let optionClass = "border-campusBorder bg-campusDark hover:bg-campusHover text-campusText";

@@ -11,13 +11,23 @@ from pydantic import BaseModel, Field
 # Request models
 # ──────────────────────────────────────────────────────────────
 
+class HistoryMessage(BaseModel):
+    """One earlier turn of a temporary (unsaved) chat, sent by the client."""
+    role: Literal["user", "assistant"]
+    content: str = Field(..., max_length=50000)
+
+
 class ChatRequest(BaseModel):
     """Request body for /chat/ask endpoint."""
-    query: str = Field(..., min_length=1, max_length=2000)
+    # Generous limit: users often quote a whole previous answer in their question.
+    # Keep in sync with MAX_QUERY_CHARS in frontend/src/components/chat/InputBar.jsx.
+    query: str = Field(..., min_length=1, max_length=20000)
     subject_code: Optional[str] = Field(None, max_length=10)
     mode: Literal["general", "marks13", "pyq_predict", "summarize"] = "general"
     session_id: Optional[str] = None  # If None, a new session is created
     is_temporary: bool = False
+    # Earlier turns for temporary chats (saved sessions load history server-side).
+    history: Optional[list[HistoryMessage]] = Field(None, max_length=40)
 
 
 class SessionCreate(BaseModel):

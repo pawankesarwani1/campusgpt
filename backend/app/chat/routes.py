@@ -148,13 +148,22 @@ async def chat_ask(
 
     # Ensure session exists or create one if not temporary
     session_id = None
-    if not body.is_temporary:
+    history: list[dict] = []
+    if body.is_temporary:
+        # Temporary chats aren't stored, so the client sends its recent turns.
+        history = [h.model_dump() for h in body.history or []]
+    else:
         session_id = await _ensure_session(
             session_id=body.session_id,
             user_id=user_id,
             query=body.query,
             subject_code=body.subject_code,
         )
+
+        # Load the conversation so far (before saving the new message) so the
+        # model can answer follow-ups like "explain the answer you gave above".
+        async for msg in get_messages_collection().find({"session_id": session_id}).sort("created_at", 1):
+            history.append({"role": msg["role"], "content": msg["content"]})
 
         # Save the user message
         await _save_message(
@@ -173,6 +182,7 @@ async def chat_ask(
                 query=body.query,
                 subject_code=body.subject_code,
                 mode=body.mode,
+                history=history,
             ):
                 full_response += token
                 yield {

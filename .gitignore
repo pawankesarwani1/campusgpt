@@ -26,6 +26,7 @@ dist/
 build/
 release/
 *.local
+*.local.txt
 
 # ── Databases & persisted data ──
 chroma_store/

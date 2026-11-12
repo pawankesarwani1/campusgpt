@@ -84,6 +84,28 @@ copy .env.example .env           # optional for local (defaults to localhost:800
 npm run dev                      # http://localhost:5173
 ```
 
+## 🖥️ Desktop app (Windows)
+
+The Electron build bundles the FastAPI backend (via PyInstaller), so users just
+run the installer — no Python, Node or MongoDB required. On first launch the app
+asks for a Gemini API key (stored encrypted with the OS keychain). Chats, uploads
+and the vector store live in `%APPDATA%\CampusGPT`.
+
+```bash
+cd backend
+venv\Scripts\pip install pyinstaller     # one-time
+cd ..\frontend
+npm run electron:build                   # → frontend/release/CampusGPT Setup x.y.z.exe
+```
+
+| Script | What it does |
+|--------|--------------|
+| `npm run build:backend` | PyInstaller → `backend/dist/campusgpt-backend/` |
+| `npm run electron:preview` | Run the production app without installing (uses the built backend) |
+| `npm run electron:build` | Backend + UI + NSIS installer |
+| `npm run electron:build:quick` | UI + installer, reusing the last backend build |
+| `npm run electron:dev` | Vite dev server in a window; run the backend yourself on :8000 |
+
 ## 🔑 Environment variables
 
 **backend/.env** (see `backend/.env.example`)

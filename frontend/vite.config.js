@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // The desktop app ships its files locally; a service worker there would
+      // only risk serving stale cached assets after an app update.
+      disable: process.env.BUILD_TARGET === 'electron',
       registerType: 'autoUpdate',
       includeAssets: ['favicon-32x32.png', 'apple-touch-icon.png'],
       manifest: {
@@ -39,6 +42,9 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
+    // Don't watch Electron build output: files there get locked mid-build,
+    // which crashes the dev server (EBUSY) and triggers pointless reloads.
+    watch: { ignored: ['**/release/**', '**/dist/**'] },
     proxy: {
       '/api': {
         target: 'http://localhost:8000',

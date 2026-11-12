@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
+  <title>CampusGPT</title>
+  <style>
+    :root {
+      --bg: #0A0E1F; --card: #11172e; --border: #232b4a; --text: #e6e9f5;
+      --muted: #8a93b5; --blue: #3b82f6; --blue2: #60a5fa; --err: #f87171;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+      font: 14px/1.5 "Segoe UI", system-ui, sans-serif; -webkit-user-select: none; user-select: none; }
+    body { display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .wrap { width: 100%; max-width: 420px; text-align: center; }
+    h1 { font-size: 28px; margin: 0 0 4px; font-weight: 800; }
+    h1 span { color: var(--blue); }
+    .sub { color: var(--muted); margin: 0 0 24px; font-size: 13px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; text-align: left; }
+    .card h2 { font-size: 15px; margin: 0 0 6px; }
+    .card p { color: var(--muted); font-size: 12.5px; margin: 0 0 14px; }
+    a { color: var(--blue2); }
+    input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font: inherit; -webkit-user-select: text; user-select: text; }
+    input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,.25); }
+    .row { display: flex; gap: 8px; margin-top: 14px; }
+    button { flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--card); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+    button.primary { background: linear-gradient(90deg, var(--blue), var(--blue2)); border: 0; color: #fff; }
+    button:hover { filter: brightness(1.1); }
+    button:disabled { opacity: .5; cursor: default; }
+    .spinner { width: 36px; height: 36px; margin: 8px auto 16px; border-radius: 50%;
+      border: 3px solid var(--border); border-top-color: var(--blue); animation: spin 0.9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .status { color: var(--muted); font-size: 13px; }
+    .err { color: var(--err); font-weight: 600; margin-bottom: 8px; }
+    pre { max-height: 140px; overflow: auto; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px; font-size: 11px; color: var(--muted); white-space: pre-wrap;
+      word-break: break-all; -webkit-user-select: text; user-select: text; }
+    .hint { color: var(--err); font-size: 12px; min-height: 18px; margin-top: 6px; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Campus<span>GPT</span></h1>
+    <p class="sub">AI Study Assistant for Anna University</p>
+
+    <!-- First run / change key -->
+    <div id="setup" class="card" hidden>
+      <h2>Connect your Gemini API key</h2>
+      <p>CampusGPT uses Google Gemini to answer questions. Get a free key from
+        <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>
+        and paste it below. It is stored encrypted on this computer only.</p>
+      <input id="key" type="password" placeholder="Paste your API key" autocomplete="off" spellcheck="false" />
+      <div id="keyHint" class="hint"></div>
+      <div class="row">
+        <button id="cancelBtn" hidden>Cancel</button>
+        <button id="saveBtn" class="primary">Save &amp; Start</button>
+      </div>
+    </div>
+
+    <!-- Backend starting -->
+    <div id="starting" hidden>
+      <div class="spinner"></div>
+      <div class="status" id="startMsg">Starting the AI engine…</div>
+      <div class="status" style="font-size:12px;margin-top:6px;opacity:.7">The first launch can take up to a minute.</div>
+    </div>
+
+    <!-- Error -->
+    <div id="error" class="card" hidden>
+      <div class="err" id="errMsg">The backend failed to start.</div>
+      <pre id="errLog"></pre>
+      <div class="row">
+        <button id="changeKeyBtn">Change API key</button>
+        <button id="logsBtn">Open logs</button>
+        <button id="retryBtn" class="primary">Retry</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const views = ['setup', 'starting', 'error'];
+    const show = (name) => views.forEach((v) => ($(v).hidden = v !== name));
+
+    window.launcher.onState((s) => {
+      if (s.view === 'setup') {
+        $('cancelBtn').hidden = !s.canCancel;
+        $('keyHint').textContent = s.hint || '';
+        $('saveBtn').disabled = false;
+        show('setup');
+        $('key').focus();
+      } else if (s.view === 'starting') {
+        $('startMsg').textContent = s.message || 'Starting the AI engine…';
+        show('starting');
+      } else if (s.view === 'error') {
+        $('errMsg').textContent = s.message;
+        $('errLog').textContent = s.log || '';
+        $('errLog').hidden = !s.log;
+        show('error');
+      }
+    });
+
+    const save = () => {
+      const key = $('key').value.trim();
+      if (key.length < 20) { $('keyHint').textContent = 'That does not look like a valid API key.'; return; }
+      $('saveBtn').disabled = true;
+      window.launcher.saveKey(key);
+      $('key').value = '';
+    };
+    $('saveBtn').onclick = save;
+    $('key').addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+    $('cancelBtn').onclick = () => window.launcher.retry();
+    $('retryBtn').onclick = () => window.launcher.retry();
+    $('changeKeyBtn').onclick = () => window.launcher.changeKey();
+    $('logsBtn').onclick = () => window.launcher.openLogs();
+  </script>
+</body>
+</html>
